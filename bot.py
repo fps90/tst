@@ -3,8 +3,8 @@ import uuid
 import string
 import random
 import logging
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+import requests
+from telebot import TeleBot, types
 
 # Enable logging
 logging.basicConfig(
@@ -17,7 +17,8 @@ class Xnce:
     def __init__(self, target):
         self.target = target
         if self.target[0] == "@":
-            return "Enter User Without '@'"
+            self.response = "Enter User Without '@'"
+            return
         if "@" in self.target:
             self.data = {
                 "_csrftoken": "".join(random.choices(string.ascii_lowercase + string.ascii_uppercase + string.digits, k=32)),
@@ -44,41 +45,22 @@ class Xnce:
         else:
             return f"Failed: {req.text}"
 
+# Initialize the bot with your token
+bot = TeleBot("6364138523:AAEr27daUr2azrnQkUSeMIJaG0B9D58kaNU")
+
 # Define command handlers for the bot
-def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text('Welcome! Send me the Instagram username or email to start the password reset process.')
+@bot.message_handler(commands=['start'])
+def start(message):
+    bot.reply_to(message, 'Welcome! Send me the Instagram username or email to start the password reset process.')
 
-def handle_message(update: Update, context: CallbackContext) -> None:
-    target = update.message.text
+@bot.message_handler(func=lambda message: True)
+def handle_message(message):
+    target = message.text
     xnce = Xnce(target)
-    update.message.reply_text(xnce.response)
+    bot.reply_to(message, xnce.response)
 
-def error(update: Update, context: CallbackContext) -> None:
-    """Log Errors caused by Updates."""
-    logger.warning(f'Update {update} caused error {context.error}')
-
-def main() -> None:
-    """Start the bot."""
-    # Replace 'YOUR_TOKEN' with your bot's token
-    updater = Updater("6364138523:AAEr27daUr2azrnQkUSeMIJaG0B9D58kaNU")
-
-    # Get the dispatcher to register handlers
-    dispatcher = updater.dispatcher
-
-    # Add command handler for start command
-    dispatcher.add_handler(CommandHandler("start", start))
-
-    # Add message handler for handling target input
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-
-    # Log all errors
-    dispatcher.add_error_handler(error)
-
-    # Start the Bot
-    updater.start_polling()
-
-    # Run the bot until you send a stop signal
-    updater.idle()
+# Start the bot
+bot.polling()
 
 if __name__ == '__main__':
-    main()
+    bot.polling()
