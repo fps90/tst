@@ -1,66 +1,48 @@
-import os
-import uuid
-import string
+from pyrogram import Client, filters
+from pyrogram.types import Message
+from pytgcalls import PyTgCalls
+from pytgcalls.types import AudioPiped
+import yt_dlp
 import random
-import logging
-import requests
-from telebot import TeleBot, types
 
-# Enable logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# بيانات الحساب
+api_id = "8934899"
+api_hash = "bf3e98d2c351e4ad06946b4897374a1e"
+session_string = "BACIVfMATb0BpsmMaPEORGdSRUC7zt71hM2llM8JduJHCre9PsZyM9VpxQaFxcq0xppAb7CeQW4-GksJzmpguSOzfWebdjpJgmJwKKyYsLvaZZOapToKH_uHf_tB8fhqXcKqCFgz13LbXAiJEbcg-LKzvfo5_QilONL7X9FMvgO9l7qH5XgXcHQ0pno8X-JUuKz2GClkxbJJgzVQWkKoAIloMuZcheqzryVReW2PveG8I3lBhfb-0kGb1OryW9Av7W7cT1D-Jp7Yp6kw0hAAalV1FfpfQ2s7uOSZUbrvuhK11XopNXjX5Rkp5Hb3igmTv0VhT8rHszPnRSsVM1GihmiOyvroNgAAAAGTF-IEAA"
 
-# Define the Xnce class for handling Instagram reset logic
-class Xnce:
-    def __init__(self, target):
-        self.target = target
-        if self.target[0] == "@":
-            self.response = "Enter User Without '@'"
-            return
-        if "@" in self.target:
-            self.data = {
-                "_csrftoken": "".join(random.choices(string.ascii_lowercase + string.ascii_uppercase + string.digits, k=32)),
-                "user_email": self.target,
-                "guid": uuid.uuid4(),
-                "device_id": uuid.uuid4()
-            }
-        else:
-            self.data = {
-                "_csrftoken": "".join(random.choices(string.ascii_lowercase + string.ascii_uppercase + string.digits, k=32)),
-                "username": self.target,
-                "guid": uuid.uuid4(),
-                "device_id": uuid.uuid4()
-            }
-        self.response = self.send_password_reset()
+# إنشاء التطبيق
+app = Client("my_account", api_id=api_id, api_hash=api_hash, session_string=session_string)
+call_app = PyTgCalls(app)
 
-    def send_password_reset(self):
-        head = {
-            "user-agent": f"Instagram 150.0.0.0.000 Android (29/10; 300dpi; 720x1440; {''.join(random.choices(string.ascii_lowercase+string.digits, k=16))}/{''.join(random.choices(string.ascii_lowercase+string.digits, k=16))}; {''.join(random.choices(string.ascii_lowercase+string.digits, k=16))}; {''.join(random.choices(string.ascii_lowercase+string.digits, k=16))}; {''.join(random.choices(string.ascii_lowercase+string.digits, k=16))}; en_GB;)"
-        }
-        req = requests.post("https://i.instagram.com/api/v1/accounts/send_password_reset/", headers=head, data=self.data)
-        if "obfuscated_email" in req.text:
-            return f"Success: {req.text}"
-        else:
-            return f"Failed: {req.text}"
+# دالة لتحميل وتشغيل الأغنية من YouTube
+def get_song_url(song_name):
+    query = f"ytsearch:{song_name}"
+    with yt_dlp.YoutubeDL({'format': 'bestaudio'}) as ydl:
+        info_dict = ydl.extract_info(query, download=False)
+        audio_url = info_dict['entries'][0]['url']
+    return audio_url
 
-# Initialize the bot with your token
-bot = TeleBot("6364138523:AAEr27daUr2azrnQkUSeMIJaG0B9D58kaNU")
+# قبول المكالمة
+@app.on_call(filters.incoming)
+async def handle_call(client, call):
+    await call.accept()  # قبول المكالمة
+    await client.send_message(call.chat.id, "تم قبول المكالمة! يمكنك الآن طلب أغنية عبر إرسال 'تشغيل [اسم الأغنية]'.")
 
-# Define command handlers for the bot
-@bot.message_handler(commands=['start'])
-def start(message):
-    bot.reply_to(message, 'Welcome! Send me the Instagram username or email to start the password reset process.')
+# تنفيذ طلب تشغيل الأغنية
+@app.on_message(filters.private & filters.regex(r'^تشغيل (.+)'))
+async def play_song(client, message: Message):
+    song_name = message.matches[0].group(1)
+    audio_url = get_song_url(song_name)  # البحث عن الأغنية
+    await client.send_message(message.chat.id, f"جاري تشغيل الأغنية: {song_name}")
+    
+    # التأكد من وجود مكالمة حالياً
+    if call_app.active_calls:
+        call = list(call_app.active_calls.values())[0]  # جلب أول مكالمة نشطة
+        await call_app.change_stream(call.chat_id, AudioPiped(audio_url))  # تغيير الأغنية التي يتم تشغيلها
 
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
-    target = message.text
-    xnce = Xnce(target)
-    bot.reply_to(message, xnce.response)
+# بدء التطبيق
+app.start()
+call_app.start()
 
-# Start the bot
-bot.polling()
-
-if __name__ == '__main__':
-    bot.polling()
+print("Bot is running...")
+app.idle()  # استمرارية التطبيق
