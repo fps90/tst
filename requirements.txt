@@ -1,4 +1,4 @@
 pyrogram==2.0.106
 tgcrypto==1.2.3
 yt-dlp==2023.7.6
-pytgcalls==3.0.0.dev21
+pytgcalls
